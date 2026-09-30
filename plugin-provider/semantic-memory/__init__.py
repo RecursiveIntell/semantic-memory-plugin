@@ -195,6 +195,7 @@ class SemanticMemoryProvider(MemoryProvider):
         if self._ledger_enabled:
             from . import injection_ledger
             injection_ledger.record(self._ledger_path, query, query_class, kept, filtered)
+        self._record_outcome(query, query_class, kept)
         lines: List[str] = []
         if filtered:
             labels: Dict[str, int] = {}
@@ -288,6 +289,18 @@ class SemanticMemoryProvider(MemoryProvider):
         items = data if isinstance(data, list) else (data or {}).get("results", [])
         return [r for r in items if isinstance(r, dict)]
 
+    def _record_outcome(self, query: str, query_class: str, kept: list) -> None:
+        """Fire-and-forget RL-routing feedback via POST /record-outcome (fail-open).
+        Good result = at least one quality-gated fact (operator-proven rule)."""
+        try:
+            self._request("/record-outcome", {
+                "query": (query or "")[:200],
+                "outcome": "good" if kept else "bad",
+                "query_class": query_class,
+            }, timeout=3.0)
+        except Exception:  # noqa: BLE001 - I1
+            pass
+
     def _max_facts(self) -> int:
         try:
             return max(1, min(10, int(_cfg_get(self._config, "max_facts", 5))))
@@ -363,6 +376,11 @@ class SemanticMemoryProvider(MemoryProvider):
             {"key": "namespaces", "description": "Optional namespace filter list", "default": ""},
             {"key": "ledger_enabled", "description": "Write per-turn injection outcome ledger (recommended)", "default": "true"},
             {"key": "ledger_path", "description": "Ledger JSONL path (default: <HERMES_HOME>/semantic-memory/injection-ledger.jsonl)", "default": ""},
+            {"key": "mcp_url", "description": "MCP HTTP face URL (default: server host, port 17440)", "default": ""},
+            {"key": "mcp_token_file", "description": "MCP bearer token file (defaults to token_file)", "default": ""},
+            {"key": "routed_search", "description": "Use MCP routing for complex query classes (recommended)", "default": "true"},
+            {"key": "capture_enabled", "description": "Capture durable user statements via sm_add_fact (opt-in)", "default": "false"},
+            {"key": "capture_flush_turns", "description": "Flush captured statements every N turns", "default": "4"},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:

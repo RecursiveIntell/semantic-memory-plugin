@@ -25,6 +25,17 @@ What it does, once selected via `hermes memory setup`:
 - **`sm_search` tool** — the agent can search memory on demand; results come back labeled
   (IDs, namespaces, scores, heuristic quality labels) with a safety note when unsafe-labeled
   results are present.
+- **Routed search** — complex queries (multi-hop, contradiction, synthesis, temporal) use the
+  server's routing surface (MCP) with a local relevance rerank; flat search for simple lookups;
+  falls back to flat automatically when MCP is unreachable.
+- **Injection ledger** — every eligible turn appends one JSONL record (kept vs filtered label
+  counts) so recall yield is measurable over time.
+- **Probe CLI** — `python3 -m probe` (with the runtime python) runs a fixed 20-query set against
+  your install and reports the durable-hit yield.
+- **Turn capture (opt-in)** — durable first-person/user-reference statements ("I prefer…",
+  "the user decided…") are distilled and stored via the governed `sm_add_fact` path; questions,
+  smalltalk, and everything else are ignored. Off by default; requires the server to be run with
+  an operator-authority token and a full tool profile.
 
 ## Install
 
@@ -96,6 +107,12 @@ dashboard panel stores them under `plugins.semantic-memory`. Both are read (setu
 | `token_file` | *(empty)* | File containing the bearer token. Blank = no auth header. |
 | `max_facts` | `5` | Max facts injected per turn (1–10). |
 | `namespaces` | *(empty)* | Optional recall namespace filter list. |
+| `ledger_enabled` | `true` | Per-turn injection outcome ledger (JSONL). |
+| `ledger_path` | `<HERMES_HOME>/semantic-memory/injection-ledger.jsonl` | Ledger location. |
+| `routed_search` | `true` | MCP routing for complex query classes; flat fallback. |
+| `mcp_url` / `mcp_token_file` | derived | MCP face (port 17440 in the docs' server unit); token defaults to `token_file`. |
+| `capture_enabled` | `false` | Opt-in durable-statement capture (needs operator-authority token + full profile on the server). |
+| `capture_flush_turns` | `4` | Batch size for capture flush. |
 
 ## Recall labels (heuristic hints, not guarantees)
 
@@ -118,10 +135,14 @@ pytest tests/ -q
 
 ## Status & limits
 
-Recall-only in this release: conversation capture (persisting turns) is not implemented;
-`sync_turn` is a intentional no-op pending a capture path via the server's MCP tool
-surface. The evidence gate is covered by targeted tests only — there is no claim of
-general recall accuracy, adversarial robustness, or prompt-injection resistance.
+v0.2: recall injection, routed search, injection ledger, probe CLI, and opt-in turn
+capture. Capture stores only distilled durable statements through the governed
+`sm_add_fact` path (server receipt carries provenance); transcripts are never stored.
+The evidence gate is covered by targeted tests only — there is no claim of general
+recall accuracy, adversarial robustness, or prompt-injection resistance. Compaction
+preservation of injected recall depends on the runtime's context engine (Hermes
+built-in compressor does not preserve recall blocks; the Ares context-governor does,
+outside this plugin's scope).
 
 ## License
 
