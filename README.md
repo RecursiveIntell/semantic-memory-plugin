@@ -141,8 +141,8 @@ pytest tests/ -q
 ## Status & limits
 
 v0.2: recall injection, routed search, injection ledger, probe CLI, and opt-in turn
-capture. Capture stores pattern-matched user utterances (unedited) through the governed
-`sm_add_fact` path (server receipt carries provenance); transcripts are never stored.
+capture. Capture routes pattern-matched user utterances (unedited, truncated) through the
+governed `sm_add_fact` path; the server receipt carries provenance for what is stored.
 The evidence gate is covered by targeted tests only — there is no claim of general
 recall accuracy, adversarial robustness, or prompt-injection resistance. Compaction
 preservation of injected recall depends on the runtime's context engine (Hermes
