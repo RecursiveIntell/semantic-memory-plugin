@@ -110,7 +110,7 @@ dashboard panel stores them under `plugins.semantic-memory`. Both are read (setu
 | `ledger_enabled` | `true` | Per-turn injection outcome ledger (JSONL). |
 | `ledger_path` | `<HERMES_HOME>/semantic-memory/injection-ledger.jsonl` | Ledger location. |
 | `routed_search` | `true` | MCP routing for complex query classes; flat fallback. |
-| `mcp_url` / `mcp_token_file` | derived | MCP face (port 17440 in the docs' server unit); token defaults to `token_file`. |
+| `mcp_url` / `mcp_token_file` | host :17440 / *(empty)* | MCP face URL; token file is independent of the HTTP token (different faces). |
 | `capture_enabled` | `false` | Opt-in durable-statement capture (needs operator-authority token + full profile on the server). |
 | `capture_flush_turns` | `4` | Batch size for capture flush. |
 

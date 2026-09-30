@@ -233,8 +233,9 @@ class SemanticMemoryProvider(MemoryProvider):
                 from urllib.parse import urlsplit
                 parts = urlsplit(str(_cfg_get(self._config, "server_url", _DEFAULT_SERVER_URL)))
                 mcp_url = f"{parts.scheme}://{parts.hostname or '127.0.0.1'}:{_DEFAULT_MCP_PORT}/mcp"
-            token_file = str(_cfg_get(self._config, "mcp_token_file",
-                                      _cfg_get(self._config, "token_file", "")))
+            # mcp_token_file is independent of the HTTP token (separate faces):
+            # defaulting it to token_file sends the WRONG credential class and 401s.
+            token_file = str(_cfg_get(self._config, "mcp_token_file", ""))
             token = ""
             if token_file:
                 try:
