@@ -258,39 +258,56 @@ class SemanticMemoryProvider(MemoryProvider):
         save_config({"plugins": {"semantic-memory": dict(values)}}, merge_existing=True)
 
     def post_setup(self, hermes_home: str, config: Dict[str, Any]) -> None:
-        """Setup-wizard hook: verify the server, then persist activation."""
+        """Setup-wizard hook: collect connection settings, activate, verify honestly."""
         from hermes_cli.config import save_config
-        from hermes_cli.memory_setup import _print_cancelled_setup
+        from hermes_cli.memory_setup import _prompt
+        print("\n  Configuring semantic-memory:\n")
+        current_url = str(_cfg_get(self._config, "server_url", _DEFAULT_SERVER_URL))
+        url = _prompt("Server URL", default=current_url)
+        current_token = str(_cfg_get(self._config, "token_file", ""))
+        token_file = _prompt("Token file path (blank for a loopback server without auth)",
+                             default=current_token)
         memory = config["memory"] = config["memory"] if isinstance(config.get("memory"), dict) else {}
         memory["provider"] = self.name
-        try:
-            self.save_config(self._config, hermes_home)
-        except Exception:
-            pass
+        memory[self.name] = {"server_url": url, "token_file": token_file}
+        self._config.update({"server_url": url, "token_file": token_file})
         try:
             save_config(config)
-        except Exception:
-            pass
-        ok = self.is_available()
-        if not ok:
-            print(
-                "\n  semantic-memory server not reachable at "
-                f"{_cfg_get(self._config, 'server_url', _DEFAULT_SERVER_URL)}\n"
-                "  Provider is saved but will idle until the server is running.\n"
-                "  Install: cargo install semantic-memory-mcp  (repo: github.com/RecursiveIntell/semantic-memory)\n"
-            )
-            _print_cancelled_setup()
+            print("  Activation and connection settings saved to config.yaml "
+                  "(memory.semantic-memory).")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  WARNING: could not save config: {exc}")
             return
-        print("\n  semantic-memory reachable — provider activated. Start a new session to use it.\n")
-
+        reachable = self.is_available()
+        if reachable:
+            print("\n  semantic-memory reachable — provider activated. "
+                  "Start a new session to use it.\n")
+        else:
+            print(
+                "\n  semantic-memory server NOT reachable at "
+                f"{url} ({self.unavailable_reason()}).\n"
+                "  Settings are saved; recall stays idle until the server is running:\n"
+                "    cargo install semantic-memory-mcp\n"
+                "    semantic-memory-mcp --memory-dir ~/.semantic-memory --http-port 17441\n"
+                "  (repo: github.com/RecursiveIntell/semantic-memory)\n"
+            )
 
 def register(ctx: Any) -> None:
-    """Plugin entry point (plugin.yaml / entry-point discovery)."""
-    try:
-        from hermes_cli.config import load_config_readonly
-        from hermes_cli.config import cfg_get
+    """Plugin entry point (plugin.yaml / entry-point discovery).
 
-        config = cfg_get(load_config_readonly(), "plugins", "semantic-memory", default={}) or {}
+    Config resolution: the ``hermes memory setup`` contract stores provider settings
+    under ``memory.semantic-memory``; the dashboard panel stores them under
+    ``plugins.semantic-memory``. Setup wins on conflict; both are read so either
+    configuration path works.
+    """
+    from hermes_cli.config import load_config_readonly
+    from hermes_cli.config import cfg_get
+
+    try:
+        cfg = load_config_readonly() or {}
     except Exception:
-        config = {}
+        cfg = {}
+    config = dict(cfg_get(cfg, "plugins", "semantic-memory", default={}) or {})
+    setup_cfg = cfg_get(cfg, "memory", "semantic-memory", default={}) or {}
+    config.update(setup_cfg)
     ctx.register_memory_provider(SemanticMemoryProvider(config=config))

@@ -7,7 +7,6 @@ Field defaults are strings per the generic renderer's convention.
 from __future__ import annotations
 
 from plugins.memory.config_schema import (
-    KIND_BOOL,
     KIND_NUMBER,
     KIND_TEXT,
     ProviderConfigSchema,
@@ -39,12 +38,6 @@ CONFIG_SCHEMA = ProviderConfigSchema(
             description="Maximum facts injected into a turn (1-10)",
             default="5",
         ),
-        ProviderField(
-            key="capture_enabled",
-            label="Capture turns",
-            kind=KIND_BOOL,
-            description="Persist completed turns to the store for future recall",
-            default="true",
-        ),
+
     ),
 )

@@ -1,82 +1,94 @@
 # Semantic Memory Provider for Hermes Agent
 
-A [memory provider plugin](https://hermes-agent.nousresearch.com/docs/developer-guide/memory-provider-plugin) for
-[Hermes Agent](https://github.com/NousResearch/hermes-agent) backed by a **local semantic-memory server**:
-a knowledge store with embeddings (HNSW), full-text search, a knowledge graph, and per-fact provenance.
+A community [memory provider plugin](https://hermes-agent.nousresearch.com/docs/developer-guide/memory-provider-plugin) for
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) that retrieves facts from a
+separately run **semantic-memory** HTTP server: a knowledge store with embeddings (HNSW),
+full-text search, a knowledge graph, and per-fact provenance
+([crates.io: semantic-memory-mcp](https://crates.io/crates/semantic-memory-mcp),
+repo: `RecursiveIntell/semantic-memory`).
 
-What you get, once selected via `hermes memory setup`:
+What it does, once selected via `hermes memory setup`:
 
-- **Automatic recall injection** — relevant durable facts are injected into every turn with
-  trust tiers, so the agent remembers without you pasting context or running searches.
-- **Evidence-gated recall** — injection passes an evidence quality gate: template artifacts,
-  prompt-pack scaffolding, stale "done/shipped" claims, and speculation are filtered out;
-  durable facts keep with a cited namespace. The injected block tells the model which parts
-  are trustworthy and which still require live verification.
-- **`sm_search` tool** — the agent can deep-search memory on demand (provenance-aware).
+- **Recall injection** — on eligible turns (non-trivial prompts), the provider searches the
+  memory server and injects matching facts above the user message, each labeled by a
+  heuristic evidence gate. If the server is unreachable or nothing matches, the turn
+  proceeds normally — recall fails open to no injection.
+- **Heuristic evidence gate** — injection drops results matching template-artifact markers,
+  prompt-pack scaffolding, and speculative language; stale "done/shipped" phrasing is
+  dropped when the query asks about current status. Facts in trusted namespaces keep by
+  default with the namespace cited. **These are keyword/namespace heuristics, not trust
+  guarantees**: retrieved memory is untrusted *data*, never proof or instructions, and a
+  stale or malicious entry in an allowlisted namespace can pass the gate.
+- **Injected header sets reading rules** — labels are heuristic quality hints; the header
+  tells the agent that current-state claims require live verification against
+  repos/config/processes, and that recalled content is not proof.
+- **`sm_search` tool** — the agent can search memory on demand; results come back labeled
+  (IDs, namespaces, scores, heuristic quality labels) with a safety note when unsafe-labeled
+  results are present.
 
 ## Install
 
 1. Run the memory server (see [Server](#server) below) and note its URL + token file.
-2. Copy or symlink this provider into your Hermes plugin dir:
+2. Copy this provider into your Hermes plugin dir:
 
    ```bash
    mkdir -p ~/.hermes/plugins
    cp -r plugin-provider/semantic-memory ~/.hermes/plugins/semantic-memory
    ```
 
-3. Launch `hermes memory setup`, pick **Semantic Memory**, and enter the server URL /
-   token file when prompted. Activation is written to `config.yaml`
-   (`memory.provider: semantic-memory`); start a new session.
+3. Run `hermes memory setup`, pick **Semantic Memory**, and enter the server URL and
+   token-file path when prompted (blank token path for a loopback server without auth).
+   Activation is written to `config.yaml` under `memory.semantic-memory`; start a new session.
+   The dashboard panel can edit the same fields later (stored under `plugins.semantic-memory`).
 
 No Hermes core changes are required — the provider implements the standard
 `MemoryProvider` ABC and rides the normal discovery + setup flow.
 
 ## Server
 
-The provider talks HTTP to the `semantic-memory-mcp` server binary
-(repo: `RecursiveIntell/semantic-memory`, installable with `cargo install semantic-memory-mcp`).
-
-Minimal launch (loopback, no auth):
+The provider talks HTTP to the `semantic-memory-mcp` server binary (a separate project,
+not part of this repo):
 
 ```bash
+cargo install semantic-memory-mcp
+
+# Loopback, unauthenticated (example only — intended for 127.0.0.1 use):
 semantic-memory-mcp --memory-dir ~/.semantic-memory --http-port 17441
-```
 
-With a bearer token:
-
-```bash
+# With a bearer token (recommended; also bind the port to loopback at the firewall level):
 semantic-memory-mcp --memory-dir ~/.semantic-memory --http-port 17441 \
   --http-auth-token-file ~/.semantic-memory/token
 ```
 
-Then set `token_file: ~/.semantic-memory/token` in the provider config (dashboard panel
-or `hermes memory setup`). The provider **fails open**: if the server is down, turns
-proceed normally without recall, and capture retries on later turns.
+Then set `token_file` in the provider config (setup prompt or dashboard panel). The
+provider **fails open**: if the server is down, turns proceed normally without recall.
+
+Server-side security (auth binding, exposure) is the server project's domain — do not
+expose an unauthenticated instance beyond loopback. Its behavior was not security-reviewed
+for this README.
 
 ## Config
 
-Stored under `plugins.semantic-memory` in `config.yaml` (editable via the dashboard panel):
+Setup stores connection settings under `memory.semantic-memory` in `config.yaml`; the
+dashboard panel stores them under `plugins.semantic-memory`. Both are read (setup wins).
 
 | Key | Default | Description |
 |---|---|---|
 | `server_url` | `http://127.0.0.1:17441` | Server HTTP endpoint. |
-| `token_file` | *(empty)* | File containing the bearer token. |
+| `token_file` | *(empty)* | File containing the bearer token. Blank = no auth header. |
 | `max_facts` | `5` | Max facts injected per turn (1–10). |
-| `capture_enabled` | *(reserved)* | Turn capture ships in a future release; recall-only today. |
+| `namespaces` | *(empty)* | Optional recall namespace filter list. |
 
-## Trust tiers (what the injected header means)
+## Recall labels (heuristic hints, not guarantees)
 
-Injected recall is labeled per fact:
-
-- `authoritative_durable` — verification-backed fact in a trusted namespace; usable directly.
-- `durable_structural` — clean structural/architecture fact in a trusted namespace; usable with the namespace cited.
+- `authoritative_durable` — verification-flavored keywords present and namespace trusted.
+- `durable_structural` — clean content in a trusted namespace.
 - `background` / `speculative` — hints only; verify before use.
-- Current-state questions ("is X shipped?") additionally carry a live-verification reminder:
-  memory is *discovery, not proof*; the agent verifies against repos/config/processes before
-  making claims.
+- `artifact_template` / `stale_status` — never injected; shown in a filtered-count note.
 
-Namespaces starting with `quarantine-` / `archive-` are excluded from recall — curation
-moves facts there instead of deleting them.
+The gate may miss unsafe or stale content that doesn't match its patterns; it also may
+filter useful content. Passing the gate does not make content true — verify claims that
+matter against live sources.
 
 ## Tests
 
@@ -85,6 +97,13 @@ python3 tests/test_recall_gate.py          # stdlib-only, no runtime needed
 # or, with the hermes-agent repo on PYTHONPATH:
 pytest tests/ -q
 ```
+
+## Status & limits
+
+Recall-only in this release: conversation capture (persisting turns) is not implemented;
+`sync_turn` is a intentional no-op pending a capture path via the server's MCP tool
+surface. The evidence gate is covered by targeted tests only — there is no claim of
+general recall accuracy, adversarial robustness, or prompt-injection resistance.
 
 ## License
 
