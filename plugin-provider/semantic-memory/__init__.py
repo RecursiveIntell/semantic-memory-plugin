@@ -44,6 +44,8 @@ _DEFAULT_CONFIG = {
     "token_file": "",
     "max_facts": 5,
     "namespaces": [],
+    "ledger_enabled": "true",
+    "ledger_path": "",
 }
 
 _SEARCH_ROUTE = "/search"
@@ -90,6 +92,9 @@ class SemanticMemoryProvider(MemoryProvider):
         self._available = False
         self._unavailable_reason = ""
         self._session_id = ""
+        from . import injection_ledger as led
+        self._ledger_path = str(_cfg_get(self._config, "ledger_path", "") or led.default_path())
+        self._ledger_enabled = str(_cfg_get(self._config, "ledger_enabled", "true")).lower() in ("1", "true", "yes", "on")
 
     # -- Lifecycle ------------------------------------------------------------
 
@@ -157,6 +162,9 @@ class SemanticMemoryProvider(MemoryProvider):
             return ""
         query_class = classify_query(query)
         kept, filtered = apply_quality_gate(results, query, self._max_facts())
+        if self._ledger_enabled:
+            from . import injection_ledger
+            injection_ledger.record(self._ledger_path, query, query_class, kept, filtered)
         lines: List[str] = []
         if filtered:
             labels: Dict[str, int] = {}
@@ -251,6 +259,8 @@ class SemanticMemoryProvider(MemoryProvider):
             {"key": "token_file", "description": "File containing the server bearer token", "default": ""},
             {"key": "max_facts", "description": "Max facts injected per turn (1-10)", "default": "5"},
             {"key": "namespaces", "description": "Optional namespace filter list", "default": ""},
+            {"key": "ledger_enabled", "description": "Write per-turn injection outcome ledger (recommended)", "default": "true"},
+            {"key": "ledger_path", "description": "Ledger JSONL path (default: <HERMES_HOME>/semantic-memory/injection-ledger.jsonl)", "default": ""},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:
