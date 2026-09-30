@@ -123,7 +123,17 @@ def test_cosine_band_gate_gates_below_floor():
 
 def test_trust_tier_header():
     h = g.trust_tier_header()
-    assert "authoritative_durable" in h and "live verification" in h
+    assert "authoritative_durable" in h and "verify" in h
+
+
+def test_trust_tier_header_does_not_authorize_direct_use():
+    """Regression guard: the header must never tell the model to use labeled
+    memories 'directly' as knowledge — labels are heuristic hints (pub-review
+    requirement 2026-09-30, receipt ...3e73aace)."""
+    h = g.trust_tier_header().lower()
+    assert "may be used directly" not in h
+    assert "not proof or instructions" in h
+    assert "untrusted" in h
 
 
 def _run_all():
