@@ -46,9 +46,15 @@ _DEFAULT_CONFIG = {
     "namespaces": [],
     "ledger_enabled": "true",
     "ledger_path": "",
+    "routed_search": "true",
+    "mcp_url": "",
+    "mcp_token_file": "",
 }
 
+_ROUTED_CLASSES = frozenset({"B", "C", "D", "E"})
+
 _SEARCH_ROUTE = "/search"
+_DEFAULT_MCP_PORT = 17440
 
 _SM_SEARCH_SCHEMA = {
     "name": "sm_search",
@@ -73,6 +79,11 @@ _SM_SEARCH_SCHEMA = {
 }
 
 
+def mcp_client_unwrap(data: Any) -> list:
+    from . import mcp_client
+    return mcp_client.unwrap_results(data)
+
+
 def _cfg_get(config: Dict[str, Any], key: str, default: Any) -> Any:
     value = config.get(key, default)
     return value if value not in ("", None) else default
@@ -95,6 +106,8 @@ class SemanticMemoryProvider(MemoryProvider):
         from . import injection_ledger as led
         self._ledger_path = str(_cfg_get(self._config, "ledger_path", "") or led.default_path())
         self._ledger_enabled = str(_cfg_get(self._config, "ledger_enabled", "true")).lower() in ("1", "true", "yes", "on")
+        self._routed_enabled = str(_cfg_get(self._config, "routed_search", "true")).lower() in ("1", "true", "yes", "on")
+        self._mcp: Any = None
 
     # -- Lifecycle ------------------------------------------------------------
 
@@ -114,7 +127,11 @@ class SemanticMemoryProvider(MemoryProvider):
 
     def initialize(self, session_id: str, **kwargs: Any) -> None:
         self._session_id = session_id
-        self._probe()
+        try:
+            self._probe()
+        except Exception as exc:  # noqa: BLE001 - fail open (I1)
+            self._available = False
+            self._unavailable_reason = str(exc)
 
     def shutdown(self) -> None:
         return None
@@ -186,9 +203,73 @@ class SemanticMemoryProvider(MemoryProvider):
         that guard so direct callers of this provider are safe too."""
         return bool(query) and query.strip().startswith("/")
 
+    def _mcp_client(self) -> Any:
+        """Lazily built MCP client (None when disabled/unreachable — fail open)."""
+        if self._mcp is not None:
+            return self._mcp
+        if not self._routed_enabled:
+            return None
+        try:
+            from . import mcp_client
+            url = str(_cfg_get(self._config, "mcp_url", "") or
+                      _DEFAULT_SERVER_URL.replace(str(_DEFAULT_SERVER_URL.split(":")[-1]),
+                                                  _DEFAULT_MCP_PORT))
+            if not str(_cfg_get(self._config, "mcp_url", "")):
+                # derive from server_url host so custom hosts work
+                from urllib.parse import urlsplit
+                parts = urlsplit(str(_cfg_get(self._config, "server_url", _DEFAULT_SERVER_URL)))
+                url = f"{parts.scheme}://{parts.hostname or '127.0.0.1'}:{_DEFAULT_MCP_PORT}/mcp"
+            token_file = str(_cfg_get(self._config, "mcp_token_file",
+                                      _cfg_get(self._config, "token_file", "")))
+            token = ""
+            if token_file:
+                try:
+                    token = open(os.path.expanduser(token_file), encoding="utf-8").read().strip()
+                except OSError:
+                    token = ""
+            mcp_url = url if url.endswith("/mcp") else url + "/mcp"
+            client = mcp_client.McpClient(mcp_url, token=token, timeout=10.0)
+            client.call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
+                                       "clientInfo": {"name": "hermes-semantic-memory", "version": "1.0"}})
+            self._mcp = client
+        except Exception as exc:  # noqa: BLE001 - routing is optional (I1)
+            logger.debug("MCP routing unavailable (%s); flat search only", exc)
+            self._mcp = None
+        return self._mcp
+
+    def _overlap_rerank(self, query: str, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Client-side relevance heuristic (documented; NOT an LLM rerank): stable sort
+        by term-overlap with the query. Server-side LLM rerank is used when a capable
+        tool exists in a future server build."""
+        q_terms = {t for t in query.lower().split() if len(t) > 2}
+
+        def _score(r: Dict[str, Any]) -> float:
+            text = ((r.get("content") or "") + " " + (r.get("namespace") or "")).lower()
+            return sum(1 for t in q_terms if t in text)
+
+        return sorted(results, key=lambda r: (_score(r), float(r.get("score") or 0)), reverse=True)
+
     def _search(self, query: str) -> List[Dict[str, Any]]:
-        payload: Dict[str, Any] = {"query": query, "top_k": self._max_facts() * 2}
         namespaces = self._config.get("namespaces") or []
+        # Routed path: complex query classes use the server's routing tool via MCP.
+        query_class = classify_query(query)
+        mcp = self._mcp_client() if query_class in _ROUTED_CLASSES else None
+        if mcp is not None:
+            try:
+                data = mcp.tool_call("sm_search_with_routing",
+                                     {"query": query, "top_k": self._max_facts() * 2,
+                                      "query_class": query_class,
+                                      "namespaces": list(namespaces)})
+                results = mcp_client_unwrap(data)
+                if query_class in ("C", "D") and len(results) > 2:
+                    results = self._overlap_rerank(query, results)
+                if results:
+                    return results
+                # server returned nothing routed; fall through to flat
+            except Exception as exc:  # noqa: BLE001 - I1
+                logger.debug("routed search failed (%s); flat fallback", exc)
+                self._mcp = None
+        payload: Dict[str, Any] = {"query": query, "top_k": self._max_facts() * 2}
         if namespaces:
             payload["namespaces"] = list(namespaces)
         data = self._request(_SEARCH_ROUTE, payload)
