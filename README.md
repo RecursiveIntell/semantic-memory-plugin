@@ -116,7 +116,7 @@ dashboard panel stores them under `plugins.semantic-memory`. Both are read (setu
 | `ledger_path` | `<HERMES_HOME>/semantic-memory/injection-ledger.jsonl` | Ledger location. |
 | `routed_search` | `true` | MCP routing for complex query classes; flat fallback. |
 | `mcp_url` / `mcp_token_file` | host :17440 / *(empty)* | MCP face URL; token file is independent of the HTTP token (different faces). |
-| `capture_enabled` | `false` | Opt-in durable-statement capture (needs operator-authority token + full profile on the server). |
+| `capture_enabled` | `false` | Opt-in capture of pattern-matched user utterances (needs operator-authority token + full profile on the server). |
 | `capture_flush_turns` | `4` | Batch size for capture flush. |
 
 ## Recall labels (heuristic hints, not guarantees)
@@ -142,7 +142,7 @@ pytest tests/ -q
 
 v0.2: recall injection, routed search, injection ledger, probe CLI, and opt-in turn
 capture. Capture routes pattern-matched user utterances (unedited, truncated) through the
-governed `sm_add_fact` path; the server receipt carries provenance for what is stored.
+governed `sm_add_fact` path; the provider does not verify server receipts.
 The evidence gate is covered by targeted tests only — there is no claim of general
 recall accuracy, adversarial robustness, or prompt-injection resistance. Compaction
 preservation of injected recall depends on the runtime's context engine (Hermes
