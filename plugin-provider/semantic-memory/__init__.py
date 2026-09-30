@@ -49,6 +49,8 @@ _DEFAULT_CONFIG = {
     "routed_search": "true",
     "mcp_url": "",
     "mcp_token_file": "",
+    "capture_enabled": "false",
+    "capture_flush_turns": 4,
 }
 
 _ROUTED_CLASSES = frozenset({"B", "C", "D", "E"})
@@ -108,6 +110,13 @@ class SemanticMemoryProvider(MemoryProvider):
         self._ledger_enabled = str(_cfg_get(self._config, "ledger_enabled", "true")).lower() in ("1", "true", "yes", "on")
         self._routed_enabled = str(_cfg_get(self._config, "routed_search", "true")).lower() in ("1", "true", "yes", "on")
         self._mcp: Any = None
+        self._capture_enabled = str(_cfg_get(self._config, "capture_enabled", "false")).lower() in ("1", "true", "yes", "on")
+        if self._capture_enabled:
+            from . import capture
+            flush_turns = int(_cfg_get(self._config, "capture_flush_turns", 4) or 4)
+            self._capture = capture.CaptureQueue(self._mcp_factory_for_capture, flush_turns=flush_turns)
+        else:
+            self._capture = None
 
     # -- Lifecycle ------------------------------------------------------------
 
@@ -134,7 +143,11 @@ class SemanticMemoryProvider(MemoryProvider):
             self._unavailable_reason = str(exc)
 
     def shutdown(self) -> None:
-        return None
+        if self._capture is not None:
+            try:
+                self._capture.flush()
+            except Exception:  # noqa: BLE001
+                pass
 
     # -- Server transport -----------------------------------------------------
 
@@ -211,14 +224,14 @@ class SemanticMemoryProvider(MemoryProvider):
             return None
         try:
             from . import mcp_client
-            url = str(_cfg_get(self._config, "mcp_url", "") or
-                      _DEFAULT_SERVER_URL.replace(str(_DEFAULT_SERVER_URL.split(":")[-1]),
-                                                  _DEFAULT_MCP_PORT))
-            if not str(_cfg_get(self._config, "mcp_url", "")):
+            explicit = str(_cfg_get(self._config, "mcp_url", "") or "")
+            if explicit:
+                mcp_url = explicit if explicit.endswith("/mcp") else explicit + "/mcp"
+            else:
                 # derive from server_url host so custom hosts work
                 from urllib.parse import urlsplit
                 parts = urlsplit(str(_cfg_get(self._config, "server_url", _DEFAULT_SERVER_URL)))
-                url = f"{parts.scheme}://{parts.hostname or '127.0.0.1'}:{_DEFAULT_MCP_PORT}/mcp"
+                mcp_url = f"{parts.scheme}://{parts.hostname or '127.0.0.1'}:{_DEFAULT_MCP_PORT}/mcp"
             token_file = str(_cfg_get(self._config, "mcp_token_file",
                                       _cfg_get(self._config, "token_file", "")))
             token = ""
@@ -227,7 +240,6 @@ class SemanticMemoryProvider(MemoryProvider):
                     token = open(os.path.expanduser(token_file), encoding="utf-8").read().strip()
                 except OSError:
                     token = ""
-            mcp_url = url if url.endswith("/mcp") else url + "/mcp"
             client = mcp_client.McpClient(mcp_url, token=token, timeout=10.0)
             client.call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
                                        "clientInfo": {"name": "hermes-semantic-memory", "version": "1.0"}})
@@ -282,16 +294,25 @@ class SemanticMemoryProvider(MemoryProvider):
         except (TypeError, ValueError):
             return 5
 
-    # -- Capture ----------------------------------------------------------------
-    # v0.1 is recall-only: the server's HTTP face exposes /health, /search and
-    # /record-outcome; conversation capture upstream happens through the MCP tool
-    # surface (sm_add_fact / conversations), which a future release can wire here
-    # behind `capture_enabled`. sync_turn stays a no-op so the manager contract holds.
+    # -- Capture (opt-in; see capture.py) ----------------------------------------
+
+    def _mcp_factory_for_capture(self) -> Any:
+        """Factory for the CaptureQueue: returns the routed MCP client or None."""
+        try:
+            mcp = self._mcp_client()
+            if mcp is None:
+                return None
+            # wrapper exposing tool_call directly (mcp_client.McpClient already has it)
+            return mcp
+        except Exception:  # noqa: BLE001 - I1
+            return None
 
     def sync_turn(self, user_content: str, assistant_content: str, *,
                   session_id: str = "", messages: Optional[List[Dict[str, Any]]] = None,
                   turn_author: Optional[Dict[str, Any]] = None) -> None:
-        return None
+        if self._capture is not None:
+            self._capture.sync_turn(user_content or "", assistant_content or "",
+                                    session_id or self._session_id)
 
     # -- Tools -------------------------------------------------------------------
 
