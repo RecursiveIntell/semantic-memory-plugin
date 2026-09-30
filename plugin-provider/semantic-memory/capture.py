@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Opt-in turn capture: qualifying user utterances -> MCP sm_add_fact.
 
-Conservative by construction: capture stores the ORIGINAL user text (truncated
-to 400 chars) only when a built-in pattern matches — never transcripts.
+Conservative by construction: capture stores the original user text (truncated
+to 400 chars) only when a built-in pattern matches.
 Statements are recognized by
 first-person/user-reference patterns on the user side of a completed turn;
 everything else is ignored. Provenance: namespace 'conversation', source
