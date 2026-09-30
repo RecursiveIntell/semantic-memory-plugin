@@ -47,17 +47,35 @@ No Hermes core changes are required — the provider implements the standard
 ## Server
 
 The provider talks HTTP to the `semantic-memory-mcp` server binary (a separate project,
-not part of this repo):
+not part of this repo). One quirk to know: the HTTP face lives alongside the server's
+stdio MCP loop, so for a long-running HTTP server you should also enable the MCP HTTP
+port (`--mcp-http-port`) — otherwise the process exits when its stdin closes. The
+simplest durable setup is a systemd user unit:
 
 ```bash
 cargo install semantic-memory-mcp
 
-# Loopback, unauthenticated (example only — intended for 127.0.0.1 use):
-semantic-memory-mcp --memory-dir ~/.semantic-memory --http-port 17441
+# create a store and a token (server REQUIRES HTTP auth; it refuses to serve without one):
+mkdir -p ~/.semantic-memory
+python3 -c "import secrets; open('/home/YOU/.semantic-memory/.token','w').write(secrets.token_urlsafe(32))"
+chmod 600 ~/.semantic-memory/.token
 
-# With a bearer token (recommended; also bind the port to loopback at the firewall level):
-semantic-memory-mcp --memory-dir ~/.semantic-memory --http-port 17441 \
-  --http-auth-token-file ~/.semantic-memory/token
+# one-shot foreground run (dies when the shell/stdin closes — fine for a quick try):
+semantic-memory-mcp --memory-dir ~/.semantic-memory \
+  --http-port 17441 --http-auth-token-file ~/.semantic-memory/.token \
+  --mcp-http-port 17440 \
+  --mcp-http-token-file ~/.semantic-memory/.token
+
+# durable run (recommended) — ~/.config/systemd/user/semantic-memory.service:
+#   [Unit]
+#   Description=Semantic Memory server
+#   [Service]
+#   Type=simple
+#   ExecStart=%h/.local/bin/semantic-memory-mcp --memory-dir %h/.semantic-memory --http-port 17441 --http-auth-token-file %h/.semantic-memory/.token --mcp-http-port 17440 --mcp-http-token-file %h/.semantic-memory/.token
+#   Environment=RUST_LOG=info
+#   [Install]
+#   WantedBy=default.target
+# then: systemctl --user daemon-reload && systemctl --user enable --now semantic-memory
 ```
 
 Then set `token_file` in the provider config (setup prompt or dashboard panel). The
