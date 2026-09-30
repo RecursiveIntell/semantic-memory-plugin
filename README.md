@@ -28,14 +28,17 @@ What it does, once selected via `hermes memory setup`:
 - **Routed search** — complex queries (multi-hop, contradiction, synthesis, temporal) use the
   server's routing surface (MCP) with a local relevance rerank; flat search for simple lookups;
   falls back to flat automatically when MCP is unreachable.
-- **Injection ledger** — every eligible turn appends one JSONL record (kept vs filtered label
-  counts) so recall yield is measurable over time.
+- **Injection ledger** — each recall turn where the search returned results appends one JSONL
+  record (kept vs filtered label counts) so recall yield is measurable over time.
 - **Probe CLI** — `python3 -m probe` (with the runtime python) runs a fixed 20-query set against
   your install and reports the durable-hit yield.
-- **Turn capture (opt-in)** — durable first-person/user-reference statements ("I prefer…",
-  "the user decided…") are distilled and stored via the governed `sm_add_fact` path; questions,
-  smalltalk, and everything else are ignored. Off by default; requires the server to be run with
-  an operator-authority token and a full tool profile.
+- **Turn capture (opt-in)** — the provider stores matched user utterances (unedited, up to
+  400 chars) via the governed `sm_add_fact` path. Matching is a small phrase-allowlist
+  ("I prefer/like/want…", "the user prefers/decided…" and similar patterns); a small set of
+  question/smalltalk forms is ignored, and other content is eligible only when it matches the
+  configured patterns — this is phrase-matching, not a durability or truth check. Off by
+  default; requires the server to run with an operator-authority token and a full tool
+  profile (the server receipt carries provenance).
 
 ## Install
 
@@ -136,7 +139,7 @@ pytest tests/ -q
 ## Status & limits
 
 v0.2: recall injection, routed search, injection ledger, probe CLI, and opt-in turn
-capture. Capture stores only distilled durable statements through the governed
+capture. Capture stores pattern-matched user utterances (unedited) through the governed
 `sm_add_fact` path (server receipt carries provenance); transcripts are never stored.
 The evidence gate is covered by targeted tests only — there is no claim of general
 recall accuracy, adversarial robustness, or prompt-injection resistance. Compaction

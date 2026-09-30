@@ -378,7 +378,7 @@ class SemanticMemoryProvider(MemoryProvider):
             {"key": "ledger_enabled", "description": "Write per-turn injection outcome ledger (recommended)", "default": "true"},
             {"key": "ledger_path", "description": "Ledger JSONL path (default: <HERMES_HOME>/semantic-memory/injection-ledger.jsonl)", "default": ""},
             {"key": "mcp_url", "description": "MCP HTTP face URL (default: server host, port 17440)", "default": ""},
-            {"key": "mcp_token_file", "description": "MCP bearer token file (defaults to token_file)", "default": ""},
+            {"key": "mcp_token_file", "description": "MCP bearer token file (independent of the HTTP token)", "default": ""},
             {"key": "routed_search", "description": "Use MCP routing for complex query classes (recommended)", "default": "true"},
             {"key": "capture_enabled", "description": "Capture durable user statements via sm_add_fact (opt-in)", "default": "false"},
             {"key": "capture_flush_turns", "description": "Flush captured statements every N turns", "default": "4"},

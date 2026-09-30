@@ -38,6 +38,41 @@ CONFIG_SCHEMA = ProviderConfigSchema(
             description="Maximum facts injected into a turn (1-10)",
             default="5",
         ),
+        ProviderField(
+            key="ledger_enabled",
+            label="Injection ledger",
+            kind=KIND_BOOL,
+            description="Write per-turn injection outcome records (JSONL) for measurability",
+            default="true",
+        ),
+        ProviderField(
+            key="routed_search",
+            label="Routed search",
+            kind=KIND_BOOL,
+            description="Use the MCP routing surface for complex query classes (flat fallback)",
+            default="true",
+        ),
+        ProviderField(
+            key="mcp_token_file",
+            label="MCP token file",
+            kind=KIND_TEXT,
+            description="Token file for the MCP face (independent of the HTTP token)",
+            default="",
+        ),
+        ProviderField(
+            key="capture_enabled",
+            label="Turn capture",
+            kind=KIND_BOOL,
+            description="Store pattern-matched user utterances via sm_add_fact (requires operator-authority token on the server)",
+            default="false",
+        ),
+        ProviderField(
+            key="mcp_url",
+            label="MCP URL",
+            kind=KIND_TEXT,
+            description="MCP face URL (default: server host, port 17440)",
+            default="",
+        ),
 
     ),
 )
