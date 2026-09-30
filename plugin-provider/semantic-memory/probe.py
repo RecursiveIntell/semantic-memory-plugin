@@ -22,8 +22,12 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from recall_gate import is_trivial_recall_query, classify_query
-from injection_ledger import default_path as ledger_default_path
+try:
+    from .recall_gate import is_trivial_recall_query, classify_query
+    from .injection_ledger import default_path as ledger_default_path
+except ImportError:  # plain-file execution (python3 probe.py from this directory)
+    from recall_gate import is_trivial_recall_query, classify_query
+    from injection_ledger import default_path as ledger_default_path
 
 # -- Fixed query set (do not tune between comparisons) -------------------------
 
