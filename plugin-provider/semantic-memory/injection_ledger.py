@@ -3,8 +3,10 @@
 JSONL record for eligible recall turns whose search returned results; write
 errors are ignored (fail-open, never blocks the turn).
 
-Operator-proven design (deployment receipt 2026-09-30): records kept/filtered
-label counts so recall yield is measurable and regressions observable.
+Operator-proven design (deployment receipt 2026-09-30): attempts to append
+kept/filtered label counts so recall yield can be measured over time; records
+may be missing when writes fail, so a zero/low count is not by itself evidence
+of zero injections.
 """
 from __future__ import annotations
 

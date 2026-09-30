@@ -33,14 +33,14 @@ What it does, once selected via `hermes memory setup`:
   recall yield is measurable over time.
 - **Probe CLI** — `python3 -m probe` (with the runtime python) runs a fixed 20-query set against
   your install and reports the durable-hit yield.
-- **Turn capture (opt-in)** — capture sends qualifying user utterances, unchanged and
-  truncated to 400 characters, through the governed MCP `sm_add_fact` path. Eligibility is
-  built-in: a final question mark and a small fixed list of acknowledgments are excluded,
-  and otherwise one of the built-in regex patterns must match ("I prefer/like/want…",
-  "the user prefers/decided…", similar). This is phrase-matching, not a check of durability
-  or truth; the patterns are not user-configurable in this release. Off by default; requires
-  the server to run with an operator-authority token and a full tool profile (the server
-  receipt carries provenance).
+- **Turn capture (opt-in)** — capture of qualifying user utterances: original text,
+  unchanged and truncated to 400 characters, is sent through the MCP `sm_add_fact` path.
+  This provider does not verify the server receipt. Eligibility is built-in: a final
+  question mark and a small fixed list of acknowledgments are excluded, and otherwise one
+  of the built-in regex patterns must match ("I prefer/like/want…", "the user
+  prefers/decided…", similar) — phrase matching does not assess durability or truth, and
+  the patterns are not user-configurable in this release. Off by default; requires the
+  server to run with an operator-authority token and a full tool profile.
 
 ## Install
 

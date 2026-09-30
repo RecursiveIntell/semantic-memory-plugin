@@ -3,9 +3,11 @@
 
 Backed by a local `semantic-memory` server binary (HTTP) that stores facts with
 embeddings (HNSW), FTS, a knowledge graph, and provenance: github.com/RecursiveIntell/semantic-memory.
-Relevant knowledge is injected into every turn (prefetch); turns are captured as
-sessions; the provider's evidence quality gate keeps injected recall trustworthy
-(durable facts pass; template artifacts, stale status and speculation are filtered).
+Matching recall is injected on eligible turns (prefetch); opt-in capture stores
+pattern-matched user utterances via the governed `sm_add_fact` path; the evidence
+quality gate applies heuristic filters and labels to recall candidates (durable-
+shaped facts pass; template artifacts, stale status, and speculation are filtered).
+Labels are heuristics, not trust guarantees.
 
 Config in $HERMES_HOME/config.yaml under `plugins.semantic-memory`:
     server_url       HTTP endpoint of the running server (default http://127.0.0.1:17441)
