@@ -33,7 +33,8 @@ _QUESTION_RE = re.compile(r"\?\s*$")
 
 
 def extract_candidates(user_content: str, assistant_content: str) -> List[Dict[str, Any]]:
-    """Distill durable statements from one turn. [] when nothing matches."""
+    """Return the original user text (truncated to 400 chars) when it matches a
+    built-in pattern; [] otherwise. This does not assess durability or truth."""
     user = (user_content or "").strip()
     if not user or _QUESTION_RE.search(user):
         return []
@@ -58,7 +59,8 @@ def extract_candidates(user_content: str, assistant_content: str) -> List[Dict[s
 
 
 class CaptureQueue:
-    """Holds distilled statements and flushes them through MCP sm_add_fact."""
+    """Queues pattern-matched user utterances and flushes them through MCP
+    sm_add_fact. No durability or truth assessment is performed."""
 
     def __init__(self, mcp_factory: Callable[[], Any], *,
                  flush_turns: int = 4, queue_path: Optional[str] = None):

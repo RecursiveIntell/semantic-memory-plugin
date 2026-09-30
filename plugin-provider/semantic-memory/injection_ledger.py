@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Injection outcome ledger: one JSONL line per eligible recall turn.
+"""Injection outcome ledger: when enabled, the provider attempts to append a
+JSONL record for eligible recall turns whose search returned results; write
+errors are ignored (fail-open, never blocks the turn).
 
 Operator-proven design (deployment receipt 2026-09-30): records kept/filtered
 label counts so recall yield is measurable and regressions observable.
-Fail-open: never blocks the turn.
 """
 from __future__ import annotations
 
