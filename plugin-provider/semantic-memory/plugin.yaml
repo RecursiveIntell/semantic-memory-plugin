@@ -1,0 +1,3 @@
+name: semantic-memory
+version: 0.1.0
+description: "Semantic memory — local fact/graph store with embeddings, provenance, and evidence-gated per-turn recall injection."
