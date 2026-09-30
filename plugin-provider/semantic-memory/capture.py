@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Opt-in turn capture: durable user statements -> MCP sm_add_fact.
+"""Opt-in turn capture: qualifying user utterances -> MCP sm_add_fact.
 
-Operator-proven conservatism (this session's autocapture review): capture
-DISTILLED durable statements, never transcripts. Statements are recognized by
+Conservative by construction: capture stores the ORIGINAL user text (truncated
+to 400 chars) only when a built-in pattern matches — never transcripts.
+Statements are recognized by
 first-person/user-reference patterns on the user side of a completed turn;
 everything else is ignored. Provenance: namespace 'conversation', source
 'turn-capture'. Fail-open (I1): an unreachable MCP surface queues (bounded) —

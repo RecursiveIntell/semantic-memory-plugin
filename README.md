@@ -28,17 +28,19 @@ What it does, once selected via `hermes memory setup`:
 - **Routed search** — complex queries (multi-hop, contradiction, synthesis, temporal) use the
   server's routing surface (MCP) with a local relevance rerank; flat search for simple lookups;
   falls back to flat automatically when MCP is unreachable.
-- **Injection ledger** — each recall turn where the search returned results appends one JSONL
-  record (kept vs filtered label counts) so recall yield is measurable over time.
+- **Injection ledger** — when enabled (default), the provider appends a JSONL record for
+  eligible recall turns whose search returned results (kept vs filtered label counts) so
+  recall yield is measurable over time.
 - **Probe CLI** — `python3 -m probe` (with the runtime python) runs a fixed 20-query set against
   your install and reports the durable-hit yield.
-- **Turn capture (opt-in)** — the provider stores matched user utterances (unedited, up to
-  400 chars) via the governed `sm_add_fact` path. Matching is a small phrase-allowlist
-  ("I prefer/like/want…", "the user prefers/decided…" and similar patterns); a small set of
-  question/smalltalk forms is ignored, and other content is eligible only when it matches the
-  configured patterns — this is phrase-matching, not a durability or truth check. Off by
-  default; requires the server to run with an operator-authority token and a full tool
-  profile (the server receipt carries provenance).
+- **Turn capture (opt-in)** — capture sends qualifying user utterances, unchanged and
+  truncated to 400 characters, through the governed MCP `sm_add_fact` path. Eligibility is
+  built-in: a final question mark and a small fixed list of acknowledgments are excluded,
+  and otherwise one of the built-in regex patterns must match ("I prefer/like/want…",
+  "the user prefers/decided…", similar). This is phrase-matching, not a check of durability
+  or truth; the patterns are not user-configurable in this release. Off by default; requires
+  the server to run with an operator-authority token and a full tool profile (the server
+  receipt carries provenance).
 
 ## Install
 
