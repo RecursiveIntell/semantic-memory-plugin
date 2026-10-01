@@ -31,8 +31,11 @@ What it does, once selected via `hermes memory setup`:
 - **Injection ledger** — when enabled (default), the provider appends a JSONL record for
   eligible recall turns whose search returned results (kept vs filtered label counts) so
   recall yield is measurable over time.
-- **Probe CLI** — `python3 -m probe` (with the runtime python) runs a fixed 20-query set against
-  your install and reports the durable-hit yield.
+- **Probe CLI** — from `plugin-provider/semantic-memory/` (or its installed
+  plugin directory), `python3 -m probe` with the runtime Python runs a fixed
+  20-query set against the configured provider and reports heuristic recall
+  yield. The probe invokes the real provider path, including enabled ledger
+  writes and outcome feedback; it is not a side-effect-free inspection.
 - **Turn capture (opt-in)** — capture of qualifying user utterances: original text,
   unchanged and truncated to 400 characters, is sent through the MCP `sm_add_fact` path.
   This provider does not verify the server receipt. Eligibility is built-in: a final
@@ -116,7 +119,7 @@ dashboard panel stores them under `plugins.semantic-memory`. Both are read (setu
 | `ledger_path` | `<HERMES_HOME>/semantic-memory/injection-ledger.jsonl` | Ledger location. |
 | `routed_search` | `true` | MCP routing for complex query classes; flat fallback. |
 | `mcp_url` / `mcp_token_file` | host :17440 / *(empty)* | MCP face URL; token file is independent of the HTTP token (different faces). |
-| `capture_enabled` | `false` | Opt-in capture of pattern-matched user utterances (needs operator-authority token + full profile on the server). |
+| `capture_enabled` | `false` | Opt-in capture of pattern-matched user utterances (needs operator-authority token + full profile on the server, and `routed_search=true` because capture uses the same MCP client factory). |
 | `capture_flush_turns` | `4` | Batch size for capture flush. |
 
 ## Recall labels (heuristic hints, not guarantees)
