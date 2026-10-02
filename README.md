@@ -42,8 +42,7 @@ What it does, once selected via `hermes memory setup`:
   question mark and a small fixed list of acknowledgments are excluded, and otherwise one
   of the built-in regex patterns must match ("I prefer/like/want…", "the user
   prefers/decided…", similar) — phrase matching does not assess durability or truth, and
-  the patterns are not user-configurable in this release. Off by default; requires the
-  server to run with an operator-authority token and a full tool profile.
+  the patterns are not user-configurable in this release. Off by default; capture requires a server-configured operator-authority token (distinct from the provider's HTTP/MCP bearer token) and a profile exposing `sm_add_fact`. Builds with the updated allowlist include it in `agent`; the GitHub `v1.1.0` tag (crate `0.5.6`) omits it from `agent`, so use `full` with that tag or upgrade to a build with the updated `agent` allowlist.
 
 ## Install
 
@@ -119,7 +118,7 @@ dashboard panel stores them under `plugins.semantic-memory`. Both are read (setu
 | `ledger_path` | `<HERMES_HOME>/semantic-memory/injection-ledger.jsonl` | Ledger location. |
 | `routed_search` | `true` | MCP routing for complex query classes; flat fallback. |
 | `mcp_url` / `mcp_token_file` | host :17440 / *(empty)* | MCP face URL; token file is independent of the HTTP token (different faces). |
-| `capture_enabled` | `false` | Opt-in capture of pattern-matched user utterances (needs operator-authority token + full profile on the server, and `routed_search=true` because capture uses the same MCP client factory). |
+| `capture_enabled` | `false` | Opt-in capture of pattern-matched user utterances; requires a server operator-authority token and a profile exposing `sm_add_fact` (`agent` on updated allowlists; `full` on the GitHub `v1.1.0` tag, crate `0.5.6`), plus `routed_search=true` because capture uses the same MCP client factory. |
 | `capture_flush_turns` | `4` | Batch size for capture flush. |
 
 ## Recall labels (heuristic hints, not guarantees)
