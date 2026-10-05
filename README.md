@@ -2,10 +2,10 @@
 
 A community [memory provider plugin](https://hermes-agent.nousresearch.com/docs/developer-guide/memory-provider-plugin) for
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) that retrieves facts from a
-separately run **semantic-memory** HTTP server: a knowledge store with embeddings (HNSW),
+separately run **semantic-memory-mcp** HTTP server: a knowledge store with embeddings (HNSW),
 full-text search, a knowledge graph, and per-fact provenance
 ([crates.io: semantic-memory-mcp](https://crates.io/crates/semantic-memory-mcp),
-repo: `RecursiveIntell/semantic-memory`).
+repo: [`RecursiveIntell/semantic-memory-mcp`](https://github.com/RecursiveIntell/semantic-memory-mcp)).
 
 What it does, once selected via `hermes memory setup`:
 
@@ -55,7 +55,7 @@ What it does, once selected via `hermes memory setup`:
    ```
 
 3. Run `hermes memory setup`, pick **Semantic Memory**, and enter the server URL and
-   token-file path when prompted (blank token path for a loopback server without auth).
+   configured bearer-token file path when prompted. The current server requires HTTP authentication, including on loopback.
    Activation is written to `config.yaml` under `memory.semantic-memory`; start a new session.
    The dashboard panel can edit the same fields later (stored under `plugins.semantic-memory`).
 
@@ -64,21 +64,36 @@ No Hermes core changes are required — the provider implements the standard
 
 ## Server
 
-The provider talks HTTP to the `semantic-memory-mcp` server binary (a separate project,
-not part of this repo). One quirk to know: the HTTP face lives alongside the server's
-stdio MCP loop, so for a long-running HTTP server you should also enable the MCP HTTP
-port (`--mcp-http-port`) — otherwise the process exits when its stdin closes. The
-simplest durable setup is a systemd user unit:
+The provider talks HTTP to the `semantic-memory-mcp` server binary and crate in the separate [semantic-memory-mcp repository](https://github.com/RecursiveIntell/semantic-memory-mcp).
+
+The transport behavior here describes [current GitHub source at `ec0b3fd`](https://github.com/RecursiveIntell/semantic-memory-mcp/blob/ec0b3fda093128e0da69e49c99cd396b7fc949fe/src/main.rs#L364-L445), with HTTP transports enabled by its build features. Verify the actual registry-installed version's `--help` before using these options:
+
+- `--mcp-http-port` enables the MCP transport needed for routed search and keeps the process running without stdin.
+- `--http-only` keeps the auxiliary HTTP server running without stdio MCP; it does not enable routed MCP search by itself.
+- The stdio-only mode exits when its input closes. Both HTTP faces require configured bearer tokens.
+
+A systemd user unit can supervise a durable server:
+
+Token creation below uses the current home, creates the file with mode `0600`, and refuses an existing `.token` file. To reuse an existing configured private token, skip the creation block and keep its token-file path; do not overwrite it.
 
 ```bash
 cargo install semantic-memory-mcp
 
 # create a store and a token (server REQUIRES HTTP auth; it refuses to serve without one):
 mkdir -p ~/.semantic-memory
-python3 -c "import secrets; open('/home/YOU/.semantic-memory/.token','w').write(secrets.token_urlsafe(32))"
+python3 - <<'PY'
+import os
+import secrets
+from pathlib import Path
+
+token_path = Path.home() / ".semantic-memory" / ".token"
+fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, "w") as token_file:
+    token_file.write(secrets.token_urlsafe(32))
+PY
 chmod 600 ~/.semantic-memory/.token
 
-# one-shot foreground run (dies when the shell/stdin closes — fine for a quick try):
+# foreground run (Ctrl-C stops it; MCP HTTP remains running if stdin closes):
 semantic-memory-mcp --memory-dir ~/.semantic-memory \
   --http-port 17441 --http-auth-token-file ~/.semantic-memory/.token \
   --mcp-http-port 17440 \
@@ -89,19 +104,19 @@ semantic-memory-mcp --memory-dir ~/.semantic-memory \
 #   Description=Semantic Memory server
 #   [Service]
 #   Type=simple
-#   ExecStart=%h/.local/bin/semantic-memory-mcp --memory-dir %h/.semantic-memory --http-port 17441 --http-auth-token-file %h/.semantic-memory/.token --mcp-http-port 17440 --mcp-http-token-file %h/.semantic-memory/.token
+#   ExecStart=%h/.cargo/bin/semantic-memory-mcp --memory-dir %h/.semantic-memory --http-port 17441 --http-auth-token-file %h/.semantic-memory/.token --mcp-http-port 17440 --mcp-http-token-file %h/.semantic-memory/.token
 #   Environment=RUST_LOG=info
 #   [Install]
 #   WantedBy=default.target
 # then: systemctl --user daemon-reload && systemctl --user enable --now semantic-memory
 ```
 
+The unit uses the default `cargo install` binary location, `%h/.cargo/bin/semantic-memory-mcp`. For a custom installation, use the path returned by `command -v semantic-memory-mcp` in `ExecStart`.
+
 Then set `token_file` in the provider config (setup prompt or dashboard panel). The
 provider **fails open**: if the server is down, turns proceed normally without recall.
 
-Server-side security (auth binding, exposure) is the server project's domain — do not
-expose an unauthenticated instance beyond loopback. Its behavior was not security-reviewed
-for this README.
+Server-side security (auth binding, exposure) is the server project's domain. Configure the required bearer-token files and review bind/exposure settings before startup. This README source review does not qualify a running service or an installed release.
 
 ## Config
 
