@@ -1,5 +1,9 @@
 # Semantic Memory Provider for Hermes Agent
 
+<!-- last-verified: 2026-10-23; scope: probe CLI and routed-search source review; no live provider run -->
+
+**Documentation check (2026-10-23):** Probe CLI options and routed-search behavior were checked against source; the provider-backed probe was not run.
+
 A community [memory provider plugin](https://hermes-agent.nousresearch.com/docs/developer-guide/memory-provider-plugin) for
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) that retrieves facts from a
 separately run **semantic-memory-mcp** HTTP server: a knowledge store with embeddings (HNSW),
@@ -26,8 +30,10 @@ What it does, once selected via `hermes memory setup`:
   (IDs, namespaces, scores, heuristic quality labels) with a safety note when unsafe-labeled
   results are present.
 - **Routed search** — complex queries (multi-hop, contradiction, synthesis, temporal) use the
-  server's routing surface (MCP) with a local relevance rerank; flat search for simple lookups;
-  falls back to flat automatically when MCP is unreachable.
+  server's routing surface (MCP). Contradiction and synthesis results receive a local
+  term-overlap rerank only when more than two results are returned. Simple lookups use flat
+  HTTP search; routed search falls back to flat search if MCP is unavailable, a routed call
+  fails, or it returns no results.
 - **Injection ledger** — when enabled (default), the provider appends a JSONL record for
   eligible recall turns whose search returned results (kept vs filtered label counts) so
   recall yield is measurable over time.
@@ -35,7 +41,11 @@ What it does, once selected via `hermes memory setup`:
   plugin directory), `python3 -m probe` with the runtime Python runs a fixed
   20-query set against the configured provider and reports heuristic recall
   yield. The probe invokes the real provider path, including enabled ledger
-  writes and outcome feedback; it is not a side-effect-free inspection.
+  writes and outcome feedback; it is not a side-effect-free inspection. Run
+  `python3 -m probe --help` to list options. `--json PATH` writes the results to a
+  JSON file (omitted by default); `--server-url URL` and `--token-file PATH`
+  override the corresponding provider settings for that run. When omitted,
+  connection settings are loaded from `$HERMES_HOME/config.yaml`.
 - **Turn capture (opt-in)** — capture of qualifying user utterances: original text,
   unchanged and truncated to 400 characters, is sent through the MCP `sm_add_fact` path.
   This provider does not verify the server receipt. Eligibility is built-in: a final
